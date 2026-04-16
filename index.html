@@ -169,7 +169,7 @@
             }
         }
 
-        // 動画レンダリング (watch.html?id=... へ遷移するように変更)
+        // 動画レンダリング (必ず watch.html?id=... を開く)
         function renderVideos(videos, mode) {
             const grid = document.getElementById('video-grid');
             
@@ -238,7 +238,6 @@
                 if (!configRes.ok) throw new Error("api.json が読み込めません");
                 config = await configRes.json();
                 
-                // URLの末尾のスラッシュを削除
                 apiBaseUrl = config.apiUrl.endsWith('/') ? config.apiUrl.slice(0, -1) : config.apiUrl;
 
                 const params = new URLSearchParams(location.search);
