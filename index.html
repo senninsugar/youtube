@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <style>
+        body { font-family: "Roboto", Arial, sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
+        .sidebar-item:hover { background-color: #f2f2f2; }
+        .active { background-color: #f2f2f2; font-weight: 500; }
+        #sidebar { width: 240px; transition: transform 0.2s; }
+        .sidebar-closed #sidebar { transform: translateX(-240px); }
+        .sidebar-closed main { margin-left: 0 !important; }
+        @keyframes slideIn { from { transform: translate(-50%, -100%); opacity: 0; } to { transform: translate(-50%, 20px); opacity: 1; } }
+        .error-alert { position: fixed; top: 0; left: 50%; z-index: 1000; animation: slideIn 0.5s forwards; }
+    </style>
+</head>
+<body class="bg-white text-[#0f0f0f]">
+    <div id="alert-container"></div>
+    <nav class="flex items-center justify-between px-4 h-14 sticky top-0 bg-white z-50">
+        <div class="flex items-center gap-4">
+            <button onclick="document.body.classList.toggle('sidebar-closed')" class="p-2 hover:bg-gray-100 rounded-full cursor-pointer"><span class="material-symbols-outlined">menu</span></button>
+            <img src="https://freelogopng.com/images/all_img/1656505113new-youtube-logo.png" class="h-5 cursor-pointer" onclick="location.href='index.html'">
+        </div>
+        <div class="flex-1 max-w-[720px] mx-8 flex items-center">
+            <div class="flex w-full border border-gray-300 rounded-full overflow-hidden focus-within:border-blue-500 ml-4">
+                <input id="search-input" type="text" class="w-full px-4 py-2 outline-none" placeholder="検索">
+                <button id="search-btn" class="bg-gray-50 px-5 border-l border-gray-300 hover:bg-gray-100"><span class="material-symbols-outlined text-gray-600">search</span></button>
+            </div>
+        </div>
+        <div class="w-10"></div>
+    </nav>
+
+    <div class="flex">
+        <aside id="sidebar" class="fixed left-0 top-14 h-[calc(100vh-56px)] p-3 bg-white z-40 border-r-0">
+            <div class="sidebar-item active flex items-center gap-6 p-3 rounded-lg cursor-pointer" onclick="location.href='index.html'">
+                <span class="material-symbols-outlined">home</span><span class="text-sm">ホーム</span>
+            </div>
+            <div class="sidebar-item flex items-center gap-6 p-3 rounded-lg cursor-pointer">
+                <span class="material-symbols-outlined">bolt</span><span class="text-sm">Shorts</span>
+            </div>
+            <div class="sidebar-item flex items-center gap-6 p-3 rounded-lg cursor-pointer border-b pb-4 mb-4">
+                <span class="material-symbols-outlined">subscriptions</span><span class="text-sm">登録チャンネル</span>
+            </div>
+            <div class="sidebar-item flex items-center gap-6 p-3 rounded-lg cursor-pointer">
+                <span class="material-symbols-outlined">history</span><span class="text-sm">履歴</span>
+            </div>
+        </aside>
+
+        <main class="flex-1 md:ml-[240px] p-6 transition-all">
+            <div id="loading" class="flex justify-center py-20 hidden"><div class="animate-spin h-8 w-8 border-4 border-red-600 rounded-full border-t-transparent"></div></div>
+            <div id="video-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-10"></div>
+        </main>
+    </div>
+
+    <script>
+        const sInp = document.getElementById('search-input');
+        const doSearch = () => { if(sInp.value) location.href=`search.html?q=${encodeURIComponent(sInp.value)}`; };
+        document.getElementById('search-btn').onclick = doSearch;
+        sInp.onkeypress = (e) => { if(e.key==='Enter') doSearch(); };
+
+        async function init() {
+            const grid = document.getElementById('video-grid');
+            const loader = document.getElementById('loading');
+            try {
+                loader.classList.remove('hidden');
+                const { apiUrl } = await fetch('./api.json').then(r => r.json());
+                const res = await fetch(`${apiUrl}/trending`);
+                const videos = await res.json();
+                grid.innerHTML = videos.map(v => `
+                    <div class="cursor-pointer group" onclick="location.href='watch.html?v=${v.id}'">
+                        <img src="${v.thumbnail}" class="w-full aspect-video object-cover rounded-xl bg-gray-100 group-hover:rounded-none transition-all duration-200">
+                        <div class="flex gap-3 mt-3">
+                            <div class="w-9 h-9 rounded-full bg-gray-200 shrink-0"></div>
+                            <div>
+                                <h3 class="text-[15px] font-semibold leading-tight line-clamp-2">${v.title}</h3>
+                                <p class="text-[13px] text-gray-600 mt-1">${v.author}</p>
+                                <p class="text-[13px] text-gray-600">${v.views} • ${v.published}</p>
+                            </div>
+                        </div>
+                    </div>`).join('');
+            } finally { loader.classList.add('hidden'); }
+        }
+        init();
+    </script>
+</body>
+</html>
