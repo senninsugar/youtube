@@ -96,6 +96,12 @@
                 <div id="desc" class="text-sm whitespace-pre-wrap leading-relaxed line-clamp-3"></div>
                 <button class="text-sm font-bold mt-2">もっと見る</button>
             </div>
+
+            <div class="mt-6">
+                <h2 id="comment-count" class="text-lg font-bold mb-4">コメント</h2>
+                <div id="comment-list" class="flex flex-col gap-4">
+                    </div>
+            </div>
         </div>
 
         <aside class="w-full lg:w-[400px] shrink-0">
@@ -116,7 +122,6 @@
     <script>
         async function loadVideo() {
             const params = new URLSearchParams(location.search);
-            // index.htmlからの遷移に合わせて id または v を取得
             const videoId = params.get('id') || params.get('v');
             
             if (!videoId) {
@@ -131,22 +136,22 @@
                 const { apiUrl } = await configRes.json();
                 const base = apiUrl.replace(/\/$/, "");
 
-                // 2. 動画詳細の取得
-                // Vercelバックエンド watch.js の実装に合わせてパスを調整
-                const res = await fetch(`${base}/watch?id=${videoId}`);
+                // 2. 動画詳細の取得 (バックエンドの /api/watch を叩く)
+                const res = await fetch(`${base}/api/watch?id=${videoId}`);
                 if (!res.ok) throw new Error("動画の読み込みに失敗しました");
                 
                 const data = await res.json();
 
                 // 3. UIへの反映
-                // Invidious APIは複数のストリームを返すため、最適なURLを選択
-                const videoSource = data.streams.find(s => s.container === 'mp4') || data.streams[0];
-                document.getElementById('player').src = videoSource.url;
+                // バックエンドが提供する streams[0].url を使用
+                if (data.streams && data.streams.length > 0) {
+                    document.getElementById('player').src = data.streams[0].url;
+                }
                 
                 document.getElementById('title').innerText = data.title;
                 document.title = `${data.title} - YouTube`;
                 document.getElementById('author').innerText = data.author || '不明なアーティスト';
-                document.getElementById('stats').innerText = `${data.views || '---'} 回視聴`;
+                document.getElementById('stats').innerText = `${data.views || '0'} 回視聴 • ${data.published || ''}`;
                 document.getElementById('desc').innerText = data.description || '説明はありません。';
 
                 // 4. 関連動画のレンダリング
@@ -166,10 +171,33 @@
                     document.getElementById('related-list').innerHTML = relatedHtml;
                 }
 
+                // 5. コメントのレンダリング
+                if (data.comments) {
+                    document.getElementById('comment-count').innerText = `コメント ${data.commentCount || ''}`;
+                    const commentHtml = data.comments.map(c => `
+                        <div class="flex gap-3">
+                            <img src="${c.authorIcon}" class="w-10 h-10 rounded-full shrink-0">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold">${c.author}</span>
+                                    <span class="text-xs text-gray-500">${c.date || ''}</span>
+                                </div>
+                                <p class="text-sm mt-1">${c.text}</p>
+                                <div class="flex items-center gap-4 mt-2 text-gray-500">
+                                    <span class="material-symbols-outlined text-[16px]">thumb_up</span>
+                                    <span class="text-xs">${c.likes || 0}</span>
+                                    <span class="material-symbols-outlined text-[16px]">thumb_down</span>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                    document.getElementById('comment-list').innerHTML = commentHtml;
+                }
+
             } catch (err) {
                 console.error(err);
                 document.getElementById('title').innerText = "エラーが発生しました";
-                document.getElementById('desc').innerText = "動画を読み込めませんでした。インスタンスを確認してください。";
+                document.getElementById('desc').innerText = "動画を読み込めませんでした。バックエンドの状態を確認してください。";
             }
         }
 
