@@ -13,6 +13,21 @@
         /* 動画プレイヤー */
         .video-container { aspect-ratio: 16 / 9; background: #000; border-radius: 12px; overflow: hidden; position: relative; }
         
+        /* 読み込みアニメーション */
+        .video-loader {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; justify-content: center; items-center;
+            background: rgba(0,0,0,0.8); z-index: 10; pointer-events: none;
+            transition: opacity 0.5s;
+        }
+        .video-loader.hidden { opacity: 0; }
+        .spinner {
+            width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1);
+            border-left-color: #ff0000; border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
         /* ツールパネル (スライドイン) */
         #tool-panel {
             position: fixed; top: 0; right: -320px; width: 300px; height: 100%;
@@ -36,9 +51,27 @@
         #overlay.active { opacity: 1; visibility: visible; }
 
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+        /* エラーアラートのスタイル */
+        #alert-container {
+            position: fixed; top: 20px; right: 20px; z-index: 3000;
+            display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+            width: calc(100% - 40px); max-width: 320px;
+        }
+        .error-alert {
+            pointer-events: auto; background: #ff5252; color: white; padding: 12px 16px;
+            border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex; items-center; gap: 12px; font-weight: 500; font-size: 14px;
+            transform: translateX(120%); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+            touch-action: none; user-select: none;
+        }
+        .error-alert.show { transform: translateX(0); }
+        .error-alert.swiping { transition: none; }
     </style>
 </head>
 <body class="bg-white">
+
+    <div id="alert-container"></div>
 
     <nav class="flex items-center justify-between px-4 h-14 sticky top-0 bg-white z-50 border-b">
         <div class="flex items-center gap-4">
@@ -126,6 +159,9 @@
     <main class="max-w-[1700px] mx-auto grid grid-cols-28 gap-6 p-4 lg:px-14">
         <div class="col-span-20">
             <div class="video-container shadow-lg">
+                <div id="video-loader" class="video-loader">
+                    <div class="spinner"></div>
+                </div>
                 <video id="player" controls autoplay class="w-full h-full"></video>
             </div>
 
@@ -164,6 +200,94 @@
         let currentVideoId = '';
         let currentThumbnailUrl = '';
 
+        // アラート表示機能
+        function showError(message) {
+            const container = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = 'error-alert';
+            alert.innerHTML = `
+                <span class="material-symbols-outlined">error</span>
+                <span>${message}</span>
+            `;
+            container.appendChild(alert);
+
+            // アニメーション表示
+            setTimeout(() => alert.classList.add('show'), 10);
+
+            // 自動削除 (3秒)
+            let autoCloseTimeout = setTimeout(() => closeAlert(alert), 3000);
+
+            // スワイプ削除機能
+            let startX = 0;
+            let currentX = 0;
+
+            alert.addEventListener('touchstart', (e) => {
+                startX = e.touches.clientX;
+                alert.classList.add('swiping');
+                clearTimeout(autoCloseTimeout);
+            });
+
+            alert.addEventListener('touchmove', (e) => {
+                currentX = e.touches.clientX - startX;
+                if (currentX > 0) {
+                    alert.style.transform = `translateX(${currentX}px)`;
+                    alert.style.opacity = 1 - (currentX / 200);
+                }
+            });
+
+            alert.addEventListener('touchend', () => {
+                alert.classList.remove('swiping');
+                if (currentX > 100) {
+                    alert.style.transform = `translateX(120%)`;
+                    setTimeout(() => alert.remove(), 300);
+                } else {
+                    alert.style.transform = '';
+                    alert.style.opacity = '';
+                    autoCloseTimeout = setTimeout(() => closeAlert(alert), 2000);
+                }
+                currentX = 0;
+            });
+            
+            // マウスでのスワイプ模倣 (PC用)
+            alert.addEventListener('mousedown', (e) => {
+                startX = e.clientX;
+                alert.classList.add('swiping');
+                clearTimeout(autoCloseTimeout);
+                
+                const onMouseMove = (moveEvent) => {
+                    currentX = moveEvent.clientX - startX;
+                    if (currentX > 0) {
+                        alert.style.transform = `translateX(${currentX}px)`;
+                        alert.style.opacity = 1 - (currentX / 200);
+                    }
+                };
+                
+                const onMouseUp = () => {
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                    alert.classList.remove('swiping');
+                    if (currentX > 100) {
+                        alert.style.transform = `translateX(120%)`;
+                        setTimeout(() => alert.remove(), 300);
+                    } else {
+                        alert.style.transform = '';
+                        alert.style.opacity = '';
+                        autoCloseTimeout = setTimeout(() => closeAlert(alert), 2000);
+                    }
+                    currentX = 0;
+                };
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+        }
+
+        function closeAlert(el) {
+            if (!el) return;
+            el.classList.remove('show');
+            setTimeout(() => el.remove(), 300);
+        }
+
         // パネル制御
         function togglePanel(open) {
             document.getElementById('tool-panel').classList.toggle('open', open);
@@ -179,7 +303,10 @@
             const container = document.getElementById('log-container');
             const p = document.createElement('p');
             p.className = "mb-1";
-            if(isError) p.classList.add('text-red-400');
+            if(isError) {
+                p.classList.add('text-red-400');
+                showError(msg); // エラー時はアラートも出す
+            }
             p.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
             container.appendChild(p);
             container.scrollTop = container.scrollHeight;
@@ -211,14 +338,26 @@
             const videoId = params.get('id') || params.get('v');
             currentVideoId = videoId;
             
+            const player = document.getElementById('player');
+            const loader = document.getElementById('video-loader');
+
+            // 動画プレイヤーのイベントリスナー
+            player.addEventListener('canplay', () => {
+                loader.classList.add('hidden');
+            });
+            player.addEventListener('error', () => {
+                loader.classList.add('hidden');
+            });
+
             if (!videoId) {
                 writeLog("Error: No Video ID", true);
+                loader.classList.add('hidden');
                 return;
             }
 
             // ストリーム取得先を api/getstream.js に変更
             const streamUrl = `api/getstream.js?v=${videoId}`;
-            document.getElementById('player').src = streamUrl;
+            player.src = streamUrl;
             document.getElementById('download-btn').href = streamUrl;
 
             try {
@@ -236,7 +375,7 @@
                 document.getElementById('stats').innerText = `${data.views || 0} 回視聴 • ${data.published || ''}`;
                 document.getElementById('desc').innerText = data.description;
                 
-                // サムネイルURLを保持 (最初の関連動画やAPIから推測、または直接データにあればそれを使用)
+                // サムネイルURLを保持
                 currentThumbnailUrl = data.thumbnail || `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
 
                 // 関連動画
