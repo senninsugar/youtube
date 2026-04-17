@@ -100,7 +100,7 @@
             <div class="mt-6">
                 <h2 id="comment-count" class="text-lg font-bold mb-4">コメント</h2>
                 <div id="comment-list" class="flex flex-col gap-4">
-                    </div>
+                </div>
             </div>
         </div>
 
@@ -130,24 +130,23 @@
                 return;
             }
 
+            // 動画再生用URLをプロキシ経由で直接生成
+            const player = document.getElementById('player');
+            player.src = `https://ytdlpinstance-vercel.vercel.app/stream/${videoId}?f=18`;
+
             try {
                 // 1. 設定の取得
                 const configRes = await fetch('./api.json');
                 const { apiUrl } = await configRes.json();
                 const base = apiUrl.replace(/\/$/, "");
 
-                // 2. 動画詳細の取得 (バックエンドの /api/watch を叩く)
+                // 2. 動画詳細の取得 (バックエンドの /api/watch からメタデータのみ取得)
                 const res = await fetch(`${base}/api/watch?id=${videoId}`);
                 if (!res.ok) throw new Error("動画の読み込みに失敗しました");
                 
                 const data = await res.json();
 
                 // 3. UIへの反映
-                // バックエンドが提供する streams[0].url を使用
-                if (data.streams && data.streams.length > 0) {
-                    document.getElementById('player').src = data.streams[0].url;
-                }
-                
                 document.getElementById('title').innerText = data.title;
                 document.title = `${data.title} - YouTube`;
                 document.getElementById('author').innerText = data.author || '不明なアーティスト';
@@ -159,7 +158,7 @@
                     const relatedHtml = data.recommended.map(rv => `
                         <div class="flex gap-2 cursor-pointer group" onclick="location.href='watch.html?id=${rv.id}'">
                             <div class="w-40 h-[94px] rounded-lg overflow-hidden shrink-0 bg-gray-200">
-                                <img src="${rv.thumbnail}" class="w-full h-full object-cover group-hover:scale-105 transition">
+                                <img src="${rv.thumbnail}" class="w-full h-full object-cover group-hover:scale-105 transition" onerror="this.src='https://i.ytimg.com/vi/${rv.id}/hqdefault.jpg'">
                             </div>
                             <div class="flex-1">
                                 <h3 class="text-sm font-bold leading-tight line-clamp-2 group-hover:text-blue-600 transition">${rv.title}</h3>
@@ -176,7 +175,7 @@
                     document.getElementById('comment-count').innerText = `コメント ${data.commentCount || ''}`;
                     const commentHtml = data.comments.map(c => `
                         <div class="flex gap-3">
-                            <img src="${c.authorIcon}" class="w-10 h-10 rounded-full shrink-0">
+                            <img src="${c.authorIcon}" class="w-10 h-10 rounded-full shrink-0" onerror="this.src='https://www.gstatic.com/youtube/img/originals/ic_persona_60.png'">
                             <div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-xs font-bold">${c.author}</span>
@@ -184,8 +183,10 @@
                                 </div>
                                 <p class="text-sm mt-1">${c.text}</p>
                                 <div class="flex items-center gap-4 mt-2 text-gray-500">
-                                    <span class="material-symbols-outlined text-[16px]">thumb_up</span>
-                                    <span class="text-xs">${c.likes || 0}</span>
+                                    <div class="flex items-center gap-1">
+                                        <span class="material-symbols-outlined text-[16px]">thumb_up</span>
+                                        <span class="text-xs">${c.likes || 0}</span>
+                                    </div>
                                     <span class="material-symbols-outlined text-[16px]">thumb_down</span>
                                 </div>
                             </div>
@@ -197,11 +198,11 @@
             } catch (err) {
                 console.error(err);
                 document.getElementById('title').innerText = "エラーが発生しました";
-                document.getElementById('desc').innerText = "動画を読み込めませんでした。バックエンドの状態を確認してください。";
+                document.getElementById('desc').innerText = "動画情報を読み込めませんでした。バックエンドの状態を確認してください。";
             }
         }
 
-        // 検索窓でも検索できるように設定
+        // 検索窓の設定
         document.getElementById('search-input')?.addEventListener('keypress', (e) => {
             if(e.key === 'Enter') {
                 location.href = `index.html?q=${encodeURIComponent(e.target.value)}`;
