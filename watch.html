@@ -64,6 +64,10 @@
         <div class="panel-content">
             <div id="menu-main" class="menu-page active">
                 <div class="flex flex-col gap-1">
+                    <button onclick="openSubMenu('video-tools')" class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-xl text-left">
+                        <div class="flex items-center gap-3"><span class="material-symbols-outlined">info</span>動画について</div>
+                        <span class="material-symbols-outlined">chevron_right</span>
+                    </button>
                     <button onclick="openSubMenu('quality')" class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-xl text-left">
                         <div class="flex items-center gap-3"><span class="material-symbols-outlined">high_quality</span>画質変更</div>
                         <span class="material-symbols-outlined">chevron_right</span>
@@ -77,6 +81,23 @@
                     <button onclick="openSubMenu('debug')" class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-xl text-left">
                         <div class="flex items-center gap-3"><span class="material-symbols-outlined">terminal</span>デバッグログ</div>
                         <span class="material-symbols-outlined">chevron_right</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="menu-video-tools" class="menu-page">
+                <button onclick="openSubMenu('main')" class="mb-4 flex items-center gap-2 text-blue-600 font-bold">
+                    <span class="material-symbols-outlined">arrow_back</span>戻る
+                </button>
+                <div class="flex flex-col gap-2">
+                    <button onclick="openInYoutube()" class="flex items-center p-3 hover:bg-gray-50 rounded-xl text-left gap-3">
+                        <span class="material-symbols-outlined">open_in_new</span>YouTubeで開く
+                    </button>
+                    <button onclick="copyVideoId()" class="flex items-center p-3 hover:bg-gray-50 rounded-xl text-left gap-3">
+                        <span class="material-symbols-outlined">content_copy</span>動画IDを保存
+                    </button>
+                    <button onclick="saveThumbnail()" class="flex items-center p-3 hover:bg-gray-50 rounded-xl text-left gap-3">
+                        <span class="material-symbols-outlined">image</span>サムネを保存
                     </button>
                 </div>
             </div>
@@ -129,7 +150,7 @@
 
             <div class="mt-6">
                 <h2 id="comment-count" class="text-lg font-bold mb-4">コメント</h2>
-                <div id="comment-list" class="flex flex-col gap-6"></div>
+                <div id="comment-list" class="flex flex-col gap-3"></div>
             </div>
         </div>
 
@@ -140,6 +161,9 @@
     </main>
 
     <script>
+        let currentVideoId = '';
+        let currentThumbnailUrl = '';
+
         // パネル制御
         function togglePanel(open) {
             document.getElementById('tool-panel').classList.toggle('open', open);
@@ -161,10 +185,31 @@
             container.scrollTop = container.scrollHeight;
         }
 
+        function openInYoutube() {
+            if (currentVideoId) {
+                window.open(`https://www.youtube.com/watch?v=${currentVideoId}`, '_blank');
+            }
+        }
+
+        function copyVideoId() {
+            if (currentVideoId) {
+                navigator.clipboard.writeText(currentVideoId).then(() => {
+                    alert("動画IDをコピーしました: " + currentVideoId);
+                });
+            }
+        }
+
+        function saveThumbnail() {
+            if (currentThumbnailUrl) {
+                window.open(currentThumbnailUrl, '_blank');
+            }
+        }
+
         async function init() {
             writeLog("Initializing load process...");
             const params = new URLSearchParams(location.search);
             const videoId = params.get('id') || params.get('v');
+            currentVideoId = videoId;
             
             if (!videoId) {
                 writeLog("Error: No Video ID", true);
@@ -190,6 +235,9 @@
                 document.getElementById('author').innerText = data.author;
                 document.getElementById('stats').innerText = `${data.views || 0} 回視聴 • ${data.published || ''}`;
                 document.getElementById('desc').innerText = data.description;
+                
+                // サムネイルURLを保持 (最初の関連動画やAPIから推測、または直接データにあればそれを使用)
+                currentThumbnailUrl = data.thumbnail || `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
 
                 // 関連動画
                 if (data.recommended) {
@@ -210,11 +258,13 @@
                 if (data.comments) {
                     document.getElementById('comment-count').innerText = `コメント ${data.commentCount || 0}`;
                     document.getElementById('comment-list').innerHTML = data.comments.map(c => `
-                        <div class="flex gap-3">
-                            <img src="${c.authorIcon}" class="w-10 h-10 rounded-full shrink-0 bg-gray-100" onerror="this.style.display='none'">
-                            <div>
-                                <p class="text-[13px] font-bold">${c.author}</p>
-                                <p class="text-[14px] mt-1 text-gray-800">${c.text}</p>
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100 shadow-sm">
+                            <div class="flex gap-3">
+                                <img src="${c.authorIcon}" class="w-10 h-10 rounded-full shrink-0 bg-gray-200" onerror="this.style.display='none'">
+                                <div class="flex-1">
+                                    <p class="text-[13px] font-bold text-gray-900">${c.author}</p>
+                                    <p class="text-[14px] mt-1 text-gray-800 leading-relaxed">${c.text}</p>
+                                </div>
                             </div>
                         </div>
                     `).join('');
