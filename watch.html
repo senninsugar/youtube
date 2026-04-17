@@ -102,8 +102,8 @@
 
     <div id="overlay" onclick="togglePanel(false)"></div>
 
-    <main class="max-w-[1700px] mx-auto flex flex-col lg:flex-row gap-6 p-4 lg:px-14">
-        <div class="flex-1">
+    <main class="max-w-[1700px] mx-auto grid grid-cols-28 gap-6 p-4 lg:px-14">
+        <div class="col-span-20">
             <div class="video-container shadow-lg">
                 <video id="player" controls autoplay class="w-full h-full"></video>
             </div>
@@ -133,7 +133,7 @@
             </div>
         </div>
 
-        <aside class="w-full lg:w-[400px] shrink-0">
+        <aside class="col-span-8 shrink-0">
             <h2 class="text-sm font-bold mb-4 uppercase tracking-wider text-gray-500">関連動画</h2>
             <div id="related-list" class="flex flex-col gap-4"></div>
         </aside>
@@ -171,8 +171,8 @@
                 return;
             }
 
-            // 再生URLとDLボタン
-            const streamUrl = `https://ytdlpinstance-vercel.vercel.app/stream/${videoId}?f=18`;
+            // ストリーム取得先を api/getstream.js に変更
+            const streamUrl = `api/getstream.js?v=${videoId}`;
             document.getElementById('player').src = streamUrl;
             document.getElementById('download-btn').href = streamUrl;
 
