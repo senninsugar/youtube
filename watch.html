@@ -141,6 +141,7 @@
         }
         function writeLog(msg, isError = false) {
             const container = document.getElementById('log-container');
+            if(!container) return;
             const p = document.createElement('p');
             p.className = "mb-1";
             if(isError) p.classList.add('text-red-400');
@@ -159,15 +160,14 @@
             }
 
             // ストリーム取得
-            const streamUrl = `api/getstream.js?v=${videoId}`;
+            const streamUrl = `/api/getstream.js?v=${videoId}`;
             document.getElementById('player').src = streamUrl;
             document.getElementById('download-btn').href = streamUrl;
 
             try {
                 writeLog("Fetching video metadata...");
                 
-                // サーバーがルートディレクトリで動いていることを想定したパス指定
-                // /api/watch?v=...
+                // パスを絶対パス "/api/watch" に修正して疎通を確保
                 const response = await fetch(`/api/watch?v=${videoId}`);
                 
                 if (!response.ok) {
