@@ -116,7 +116,7 @@
             </div>
             <div class="mt-4 bg-gray-100 p-4 rounded-xl">
                 <p id="stats" class="text-sm font-bold mb-1"></p>
-                <div id="desc" class="text-sm whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto"></div>
+                <div id="desc" class="text-sm whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto"></div>
             </div>
             <div class="mt-6">
                 <h2 id="comment-count" class="text-lg font-bold mb-4">コメント</h2>
@@ -153,33 +153,50 @@
             writeLog("Initializing load process...");
             const params = new URLSearchParams(location.search);
             const videoId = params.get('id') || params.get('v');
-            if (!videoId) { writeLog("Error: No Video ID", true); return; }
+            if (!videoId) { 
+                writeLog("Error: No Video ID", true); 
+                return; 
+            }
 
+            // ストリーム取得
             const streamUrl = `api/getstream.js?v=${videoId}`;
             document.getElementById('player').src = streamUrl;
             document.getElementById('download-btn').href = streamUrl;
 
             try {
                 writeLog("Fetching video metadata...");
-                // 相対パスで自作APIを叩く
-                const data = await fetch(`/api/watch?v=${videoId}`).then(r => r.json());
+                
+                // サーバーがルートディレクトリで動いていることを想定したパス指定
+                // /api/watch?v=...
+                const response = await fetch(`/api/watch?v=${videoId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`API response was not ok (Status: ${response.status})`);
+                }
 
-                document.getElementById('title').innerText = data.title;
-                document.getElementById('author').innerText = data.author;
-                document.getElementById('stats').innerText = `${data.views} 回視聴 • ${data.published}`;
-                document.getElementById('desc').innerText = data.description;
+                const data = await response.json();
+                writeLog("Data received successfully.");
 
-                if (data.authorIcon) {
-                    document.getElementById('author-icon').src = data.authorIcon;
-                    document.getElementById('author-icon').classList.remove('hidden');
+                // タイトル・著者・詳細
+                document.getElementById('title').innerText = data.title || "Untitled";
+                document.getElementById('author').innerText = data.author || "Unknown Channel";
+                document.getElementById('stats').innerText = `${data.views || 0} 回視聴 • ${data.published || ""}`;
+                document.getElementById('desc').innerText = data.description || "";
+
+                // チャンネルアイコン
+                if (data.authorIcon && data.authorIcon !== "") {
+                    const iconImg = document.getElementById('author-icon');
+                    iconImg.src = data.authorIcon;
+                    iconImg.classList.remove('hidden');
                     document.getElementById('author-icon-placeholder').classList.add('hidden');
                 }
 
-                if (data.recommended) {
+                // 関連動画
+                if (data.recommended && data.recommended.length > 0) {
                     document.getElementById('related-list').innerHTML = data.recommended.map(v => `
                         <div class="flex gap-2 cursor-pointer group" onclick="location.href='watch.html?v=${v.id}'">
                             <div class="w-32 h-20 rounded-lg bg-gray-200 overflow-hidden shrink-0 relative">
-                                <img src="${v.thumbnail}" class="w-full h-full object-cover">
+                                <img src="${v.thumbnail}" class="w-full h-full object-cover group-hover:scale-105 transition">
                             </div>
                             <div class="flex-1">
                                 <h3 class="text-[13px] font-bold line-clamp-2 leading-tight">${v.title}</h3>
@@ -187,13 +204,16 @@
                             </div>
                         </div>
                     `).join('');
+                } else {
+                    document.getElementById('related-list').innerHTML = `<p class="text-xs text-gray-400">関連動画はありません</p>`;
                 }
 
-                if (data.comments && data.comments.length > 0) {
-                    document.getElementById('comment-count').innerText = `コメント ${data.commentCount}`;
+                // コメント
+                if (data.comments) {
+                    document.getElementById('comment-count').innerText = data.commentCount || "コメント";
                     document.getElementById('comment-list').innerHTML = data.comments.map(c => `
                         <div class="flex gap-3">
-                            <img src="${c.authorIcon}" class="w-9 h-9 rounded-full shrink-0 bg-gray-100">
+                            <img src="${c.authorIcon || 'https://www.gstatic.com/youtube/img/originals/cinematic/thumbnails/placeholder.png'}" class="w-9 h-9 rounded-full shrink-0 bg-gray-100" onerror="this.src='https://www.gstatic.com/youtube/img/originals/cinematic/thumbnails/placeholder.png'">
                             <div>
                                 <p class="text-[12px] font-bold">${c.author} <span class="font-normal text-gray-500 ml-1">${c.date}</span></p>
                                 <p class="text-[13px] mt-0.5 text-gray-800">${c.text}</p>
@@ -201,11 +221,15 @@
                         </div>
                     `).join('');
                 }
+                
                 writeLog("All systems ready.");
+
             } catch (err) {
                 writeLog(`Fatal: ${err.message}`, true);
+                console.error("Initialization error:", err);
             }
         }
+
         init();
     </script>
 </body>
