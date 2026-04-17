@@ -160,15 +160,15 @@
             }
 
             // ストリーム取得
-            const streamUrl = `/api/getstream.js?v=${videoId}`;
+            const streamUrl = `/getstream.js?v=${videoId}`;
             document.getElementById('player').src = streamUrl;
             document.getElementById('download-btn').href = streamUrl;
 
             try {
                 writeLog("Fetching video metadata...");
                 
-                // パスを絶対パス "/api/watch" に修正して疎通を確保
-                const response = await fetch(`/api/watch?v=${videoId}`);
+                // パスを絶対パス "/watch" に修正して疎通を確保
+                const response = await fetch(`/watch?v=${videoId}`);
                 
                 if (!response.ok) {
                     throw new Error(`API response was not ok (Status: ${response.status})`);
