@@ -58,7 +58,6 @@
     </main>
 
     <script>
-        // ログを表示する関数
         function writeLog(msg, isError = false) {
             const container = document.getElementById('debug-log');
             const content = document.getElementById('log-content');
@@ -83,35 +82,38 @@
 
             writeLog(`Video ID: ${videoId}`);
 
-            // 再生URLのセット
             const streamUrl = `https://ytdlpinstance-vercel.vercel.app/stream/${videoId}?f=18`;
             document.getElementById('player').src = streamUrl;
-            writeLog(`Set video source: ${streamUrl}`);
 
             try {
                 writeLog("Fetching api.json...");
-                const configRes = await fetch('./api.json').catch(e => { throw new Error("api.json fetch failed: " + e.message) });
-                
+                const configRes = await fetch('./api.json').catch(e => { throw new Error("api.json fetch failed") });
                 if (!configRes.ok) throw new Error(`api.json returned ${configRes.status}`);
                 
                 const { apiUrl } = await configRes.json();
-                const base = apiUrl.replace(/\/$/, "");
-                writeLog(`API Base URL: ${base}`);
+                
+                // URLの末尾から /api を削除（重複防止）
+                let base = apiUrl.replace(/\/$/, "");
+                if (base.endsWith("/api")) {
+                    base = base.substring(0, base.length - 4);
+                }
+                
+                writeLog(`Cleaned Base URL: ${base}`);
 
+                // 正しいリクエストURLを構築
                 const requestUrl = `${base}/api/watch?id=${videoId}`;
                 writeLog(`Fetching data from: ${requestUrl}`);
 
-                const res = await fetch(requestUrl).catch(e => { throw new Error("API Network Error: " + e.message) });
-                
+                const res = await fetch(requestUrl).catch(e => { throw new Error("API Network Error") });
                 writeLog(`API Response Status: ${res.status}`);
                 
                 if (!res.ok) {
                     const errorBody = await res.text();
-                    throw new Error(`API Error ${res.status}: ${errorBody.substring(0, 100)}`);
+                    throw new Error(`API Error ${res.status}: ${errorBody.substring(0, 50)}`);
                 }
 
                 const data = await res.json();
-                writeLog("Data successfully received and parsed.");
+                writeLog("Data successfully received.");
 
                 // UI反映
                 document.getElementById('title').innerText = data.title || "無題";
@@ -119,7 +121,6 @@
                 document.getElementById('stats').innerText = `${data.views || '0'} 回視聴 • ${data.published || ''}`;
                 document.getElementById('desc').innerText = data.description || '説明はありません。';
 
-                // 関連動画
                 if (data.recommended && Array.isArray(data.recommended)) {
                     document.getElementById('related-list').innerHTML = data.recommended.map(rv => `
                         <div class="flex gap-2 cursor-pointer" onclick="location.href='watch.html?id=${rv.id}'">
@@ -133,27 +134,29 @@
                     `).join('');
                 }
 
+                if (data.comments && Array.isArray(data.comments)) {
+                    document.getElementById('comment-count').innerText = `コメント ${data.commentCount || '0'}`;
+                    document.getElementById('comment-list').innerHTML = data.comments.map(c => `
+                        <div class="flex gap-3">
+                            <img src="${c.authorIcon}" class="w-10 h-10 rounded-full shrink-0" onerror="this.src='https://www.gstatic.com/youtube/img/originals/ic_persona_60.png'">
+                            <div>
+                                <p class="text-xs font-bold">${c.author}</p>
+                                <p class="text-sm mt-1">${c.text}</p>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
                 writeLog("UI rendering complete.");
 
             } catch (err) {
                 writeLog(`FATAL ERROR: ${err.message}`, true);
-                if (err.stack) console.error(err.stack);
-                
                 document.getElementById('title').innerText = "読み込みエラー";
-                document.getElementById('desc').innerHTML = `
-                    <div class="text-red-600 font-bold mb-2">エラーが発生しました</div>
-                    <div class="bg-gray-800 text-white p-3 rounded font-mono text-xs overflow-auto max-h-40">
-                        ${err.message}
-                    </div>
-                `;
+                document.getElementById('desc').innerHTML = `<div class="bg-red-100 p-3 rounded text-red-700 text-xs">${err.message}</div>`;
             }
         }
 
-        // 実行開始
-        loadVideo().catch(e => {
-            alert("Script crashed: " + e.message);
-            writeLog("CRITICAL CRASH: " + e.message, true);
-        });
+        loadVideo();
     </script>
 </body>
 </html>
