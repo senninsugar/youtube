@@ -216,6 +216,7 @@
         let currentVideoId = '';
         let currentThumbnailUrl = '';
         let currentFormats = [];
+        let apiBaseUrl = '';
 
         function showError(message) {
             const container = document.getElementById('alert-container');
@@ -262,7 +263,7 @@
             if (currentFormats.length === 0) {
                 list.innerHTML = '<p class="text-center text-gray-500 py-4">フォーマットを取得中...</p>';
                 try {
-                    const res = await fetch(`/api/stream?id=${currentVideoId}`);
+                    const res = await fetch(`${apiBaseUrl}/stream?id=${currentVideoId}`);
                     const data = await res.json();
                     currentFormats = data.formats || [];
                 } catch (e) {
@@ -305,16 +306,21 @@
             if (!videoId) { writeLog("Error: No Video ID", true); loader.classList.add('hidden'); return; }
 
             try {
+                // api.jsonからapiUrlを読み込む
+                const configRes = await fetch('./api.json');
+                const config = await configRes.json();
+                apiBaseUrl = config.apiUrl.replace(/\/$/, "");
+
                 // 1. ストリーム情報の取得 (api/stream ハンドラー使用)
                 writeLog("Fetching stream...");
-                fetch(`/api/stream?id=${videoId}`).then(r => r.json()).then(data => {
+                fetch(`${apiBaseUrl}/stream?id=${videoId}`).then(r => r.json()).then(data => {
                     if(data.primaryUrl) player.src = data.primaryUrl;
                     currentFormats = data.formats || [];
                 }).catch(e => writeLog("Stream fetch failed", true));
 
                 // 2. メタデータの取得
                 writeLog("Fetching video metadata...");
-                const watchData = await fetch(`/api/watch?id=${videoId}`).then(r => r.json()).catch(e => {
+                const watchData = await fetch(`${apiBaseUrl}/watch?id=${videoId}`).then(r => r.json()).catch(e => {
                     writeLog("Metadata fetch failed, showing partial info", true);
                     return {};
                 });
