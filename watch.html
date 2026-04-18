@@ -66,7 +66,7 @@
         }
         @keyframes modalScale { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
 
-        /* エラーアラート */
+        /* エラーアラートのスタイル */
         #alert-container {
             position: fixed; top: 20px; right: 20px; z-index: 3000;
             display: flex; flex-direction: column; gap: 10px; pointer-events: none;
@@ -77,8 +77,10 @@
             border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             display: flex; align-items: center; gap: 12px; font-weight: 500; font-size: 14px;
             transform: translateX(120%); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+            touch-action: none; user-select: none;
         }
         .error-alert.show { transform: translateX(0); }
+        .error-alert.swiping { transition: none; }
     </style>
 </head>
 <body class="bg-white">
@@ -169,8 +171,8 @@
 
     <div id="overlay" onclick="togglePanel(false)"></div>
 
-    <main class="max-w-[1700px] mx-auto grid grid-cols-1 md:grid-cols-28 gap-6 p-4 lg:px-14">
-        <div class="md:col-span-20">
+    <main class="max-w-[1700px] mx-auto grid grid-cols-28 gap-6 p-4 lg:px-14">
+        <div class="col-span-20">
             <div class="video-container shadow-lg">
                 <div id="video-loader" class="video-loader">
                     <div class="spinner"></div>
@@ -204,7 +206,7 @@
             </div>
         </div>
 
-        <aside class="md:col-span-8 shrink-0">
+        <aside class="col-span-8 shrink-0">
             <h2 class="text-sm font-bold mb-4 uppercase tracking-wider text-gray-500">関連動画</h2>
             <div id="related-list" class="flex flex-col gap-4"></div>
         </aside>
@@ -218,10 +220,17 @@
         function showError(message) {
             const container = document.getElementById('alert-container');
             const alert = document.createElement('div');
-            alert.className = 'error-alert show';
+            alert.className = 'error-alert';
             alert.innerHTML = `<span class="material-symbols-outlined">error</span><span>${message}</span>`;
             container.appendChild(alert);
-            setTimeout(() => { alert.classList.remove('show'); setTimeout(() => alert.remove(), 300); }, 3000);
+            setTimeout(() => alert.classList.add('show'), 10);
+            let autoCloseTimeout = setTimeout(() => closeAlert(alert), 3000);
+        }
+
+        function closeAlert(el) {
+            if (!el) return;
+            el.classList.remove('show');
+            setTimeout(() => el.remove(), 300);
         }
 
         function togglePanel(open) {
@@ -237,7 +246,8 @@
         function writeLog(msg, isError = false) {
             const container = document.getElementById('log-container');
             const p = document.createElement('p');
-            p.className = "mb-1 " + (isError ? 'text-red-400' : '');
+            p.className = "mb-1" + (isError ? " text-red-400" : "");
+            if(isError) showError(msg);
             p.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
             container.appendChild(p);
             container.scrollTop = container.scrollHeight;
@@ -252,7 +262,7 @@
             if (currentFormats.length === 0) {
                 list.innerHTML = '<p class="text-center text-gray-500 py-4">フォーマットを取得中...</p>';
                 try {
-                    const res = await fetch(`api/stream?id=${currentVideoId}`);
+                    const res = await fetch(`/api/stream?id=${currentVideoId}`);
                     const data = await res.json();
                     currentFormats = data.formats || [];
                 } catch (e) {
@@ -277,73 +287,91 @@
         }
 
         function openInYoutube() { if (currentVideoId) window.open(`https://www.youtube.com/watch?v=${currentVideoId}`, '_blank'); }
-        function copyVideoId() { if (currentVideoId) { navigator.clipboard.writeText(currentVideoId); alert("コピー完了"); } }
+        function copyVideoId() { if (currentVideoId) { navigator.clipboard.writeText(currentVideoId).then(() => alert("コピーしました")); } }
         function saveThumbnail() { if (currentThumbnailUrl) window.open(currentThumbnailUrl, '_blank'); }
 
         async function init() {
+            writeLog("Initializing load process...");
             const params = new URLSearchParams(location.search);
             const videoId = params.get('id') || params.get('v');
             currentVideoId = videoId;
-            if (!videoId) return;
-
+            
             const player = document.getElementById('player');
             const loader = document.getElementById('video-loader');
 
+            player.addEventListener('canplay', () => loader.classList.add('hidden'));
+            player.addEventListener('error', () => { writeLog("Player error", true); loader.classList.add('hidden'); });
+
+            if (!videoId) { writeLog("Error: No Video ID", true); loader.classList.add('hidden'); return; }
+
             try {
+                // 1. ストリーム情報の取得 (api/stream ハンドラー使用)
                 writeLog("Fetching stream...");
-                const streamRes = await fetch(`api/stream?id=${videoId}`);
-                const streamData = await streamRes.json();
-                player.src = streamData.primaryUrl;
-                currentFormats = streamData.formats || [];
+                fetch(`/api/stream?id=${videoId}`).then(r => r.json()).then(data => {
+                    if(data.primaryUrl) player.src = data.primaryUrl;
+                    currentFormats = data.formats || [];
+                }).catch(e => writeLog("Stream fetch failed", true));
 
-                writeLog("Fetching metadata...");
-                const data = await fetch(`api/watch?id=${videoId}`).then(r => r.json());
+                // 2. メタデータの取得
+                writeLog("Fetching video metadata...");
+                const watchData = await fetch(`/api/watch?id=${videoId}`).then(r => r.json()).catch(e => {
+                    writeLog("Metadata fetch failed, showing partial info", true);
+                    return {};
+                });
 
-                document.getElementById('title').innerText = data.title;
-                document.getElementById('author').innerText = data.author?.name || '';
-                document.getElementById('sub-count').innerText = data.author?.subscribers || '';
-                if (data.author?.thumbnail) {
-                    const icon = document.getElementById('author-icon');
-                    icon.src = data.author.thumbnail;
-                    icon.classList.remove('hidden');
+                // UIの更新 (データがない場合はデフォルト値を表示)
+                document.getElementById('title').innerText = watchData.title || "動画タイトル";
+                document.getElementById('author').innerText = watchData.author?.name || "Unknown Author";
+                document.getElementById('sub-count').innerText = watchData.author?.subscribers || "";
+                
+                if (watchData.author?.thumbnail) {
+                    const iconImg = document.getElementById('author-icon');
+                    iconImg.src = watchData.author.thumbnail;
+                    iconImg.classList.remove('hidden');
                     document.getElementById('author-icon-fallback').classList.add('hidden');
                 }
 
-                document.getElementById('stats').innerText = `${data.views || 0} 回視聴 • ${data.published || ''}`;
-                document.getElementById('desc').innerText = data.description;
-                currentThumbnailUrl = data.thumbnail;
+                document.getElementById('stats').innerText = `${watchData.views || 0} 回視聴 • ${watchData.published || ''}`;
+                document.getElementById('desc').innerText = watchData.description || "";
+                currentThumbnailUrl = watchData.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
-                document.getElementById('related-list').innerHTML = (data.recommended || []).map(v => `
-                    <div class="flex gap-2 cursor-pointer group" onclick="location.href='watch.html?id=${v.id}'">
-                        <div class="w-32 h-20 rounded-lg bg-gray-200 overflow-hidden shrink-0 relative">
-                            <img src="${v.thumbnail}" class="w-full h-full object-cover">
-                        </div>
-                        <div class="flex-1">
-                            <h3 class="text-xs font-bold line-clamp-2">${v.title}</h3>
-                            <p class="text-[10px] text-gray-500 mt-1">${v.author || ''}</p>
-                        </div>
-                    </div>
-                `).join('');
-
-                document.getElementById('comment-list').innerHTML = (data.comments || []).map(c => `
-                    <div class="bg-gray-50 p-3 rounded-xl text-sm">
-                        <div class="flex gap-2">
-                            <img src="${c.authorIcon}" class="w-8 h-8 rounded-full">
-                            <div>
-                                <p class="font-bold text-[12px]">${c.author} <span class="font-normal text-gray-400 ml-2">${c.date}</span></p>
-                                <p class="mt-1">${c.text}</p>
+                // 関連動画の描画
+                if (watchData.recommended) {
+                    document.getElementById('related-list').innerHTML = watchData.recommended.map(v => `
+                        <div class="flex gap-2 cursor-pointer group" onclick="location.href='watch.html?id=${v.id}'">
+                            <div class="w-32 h-20 rounded-lg bg-gray-200 overflow-hidden shrink-0 relative">
+                                <img src="${v.thumbnail}" class="w-full h-full object-cover">
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="text-xs font-bold line-clamp-2">${v.title}</h3>
+                                <p class="text-[10px] text-gray-500 mt-1">${v.author || ''}</p>
                             </div>
                         </div>
-                    </div>
-                `).join('');
+                    `).join('');
+                }
 
-                player.addEventListener('canplay', () => loader.classList.add('hidden'));
-                writeLog("Ready.");
+                // コメントの描画
+                if (watchData.comments) {
+                    document.getElementById('comment-count').innerText = `コメント ${watchData.commentCount || 0}`;
+                    document.getElementById('comment-list').innerHTML = watchData.comments.map(c => `
+                        <div class="bg-gray-50 p-3 rounded-xl text-sm">
+                            <div class="flex gap-2">
+                                <img src="${c.authorIcon}" class="w-8 h-8 rounded-full" onerror="this.style.display='none'">
+                                <div>
+                                    <p class="font-bold text-[12px]">${c.author} <span class="font-normal text-gray-400 ml-2">${c.date || ''}</span></p>
+                                    <p class="mt-1">${c.text}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+                writeLog("All systems ready.");
             } catch (err) {
-                writeLog(err.message, true);
-                loader.classList.add('hidden');
+                writeLog(`Fatal: ${err.message}`, true);
             }
         }
+
         init();
     </script>
 </body>
