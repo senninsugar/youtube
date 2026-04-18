@@ -307,14 +307,14 @@
             try {
                 // 1. ストリーム情報の取得 (api/stream ハンドラー使用)
                 writeLog("Fetching stream...");
-                fetch(`/api/stream?id=${videoId}`).then(r => r.json()).then(data => {
+                fetch(`/stream?id=${videoId}`).then(r => r.json()).then(data => {
                     if(data.primaryUrl) player.src = data.primaryUrl;
                     currentFormats = data.formats || [];
                 }).catch(e => writeLog("Stream fetch failed", true));
 
                 // 2. メタデータの取得
                 writeLog("Fetching video metadata...");
-                const watchData = await fetch(`/api/watch?id=${videoId}`).then(r => r.json()).catch(e => {
+                const watchData = await fetch(`/watch?id=${videoId}`).then(r => r.json()).catch(e => {
                     writeLog("Metadata fetch failed, showing partial info", true);
                     return {};
                 });
