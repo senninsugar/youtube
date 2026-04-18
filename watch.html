@@ -170,11 +170,12 @@
             <div class="mt-4 flex items-center justify-between border-b pb-4">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                        <img id="author-icon" src="" class="w-full h-full object-cover hidden" onerror="this.classList.add('hidden'); document.getElementById('author-icon-fallback').classList.remove('hidden')">
                         <span id="author-icon-fallback" class="material-symbols-outlined text-gray-400">person</span>
                     </div>
                     <div>
                         <p id="author" class="font-bold text-[16px]"></p>
-                        <p class="text-[12px] text-gray-500">チャンネル登録者数 120万人</p>
+                        <p id="sub-count" class="text-[12px] text-gray-500"></p>
                     </div>
                 </div>
             </div>
@@ -371,7 +372,17 @@
 
                 // UI更新
                 document.getElementById('title').innerText = data.title;
-                document.getElementById('author').innerText = data.author;
+                
+                // バックエンドのレスポンス構造（data.author.name / data.author.thumbnail / data.author.subscribers）に対応
+                document.getElementById('author').innerText = data.author?.name || '';
+                document.getElementById('sub-count').innerText = data.author?.subscribers || '';
+                if (data.author?.thumbnail) {
+                    const iconImg = document.getElementById('author-icon');
+                    iconImg.src = data.author.thumbnail;
+                    iconImg.classList.remove('hidden');
+                    document.getElementById('author-icon-fallback').classList.add('hidden');
+                }
+
                 document.getElementById('stats').innerText = `${data.views || 0} 回視聴 • ${data.published || ''}`;
                 document.getElementById('desc').innerText = data.description;
                 
@@ -401,8 +412,12 @@
                             <div class="flex gap-3">
                                 <img src="${c.authorIcon}" class="w-10 h-10 rounded-full shrink-0 bg-gray-200" onerror="this.style.display='none'">
                                 <div class="flex-1">
-                                    <p class="text-[13px] font-bold text-gray-900">${c.author}</p>
+                                    <div class="flex items-center gap-2">
+                                        <p class="text-[13px] font-bold text-gray-900">${c.author}</p>
+                                        <p class="text-[11px] text-gray-500">${c.date || ''}</p>
+                                    </div>
                                     <p class="text-[14px] mt-1 text-gray-800 leading-relaxed">${c.text}</p>
+                                    ${c.likes ? `<p class="text-[11px] text-gray-500 mt-2 flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">thumb_up</span> ${c.likes}</p>` : ''}
                                 </div>
                             </div>
                         </div>
