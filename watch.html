@@ -276,7 +276,7 @@
                 <a href="${f.url}" target="_blank" download class="flex items-center justify-between p-3 hover:bg-gray-100 rounded-xl border border-gray-100 transition">
                     <div>
                         <span class="font-bold text-sm text-blue-600">${f.quality_label || f.quality || 'N/A'}</span>
-                        <span class="text-[10px] text-gray-400 ml-2">itag: ${f.itag} / ${f.mime_type.split(';')}</span>
+                        <span class="text-[10px] text-gray-400 ml-2">itag: ${f.itag} / ${f.mime_type?.split(';')}</span>
                     </div>
                     <span class="material-symbols-outlined text-gray-400">download</span>
                 </a>
@@ -314,7 +314,10 @@
                 // 1. ストリーム情報の取得 (api/stream ハンドラー使用)
                 writeLog("Fetching stream...");
                 fetch(`${apiBaseUrl}/stream?id=${videoId}`).then(r => r.json()).then(data => {
+                    // バックエンド(yudlp)が返すデータ構造に合わせて再生URLを設定
                     if(data.primaryUrl) player.src = data.primaryUrl;
+                    else if(data.formats && data.formats.length > 0) player.src = data.formats.url;
+                    
                     currentFormats = data.formats || [];
                 }).catch(e => writeLog("Stream fetch failed", true));
 
